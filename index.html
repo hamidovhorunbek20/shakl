@@ -1,0 +1,909 @@
+<!doctype html>
+<html lang="uz" class="h-full">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Figura — qo'l bilan 3D shakllar</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap"
+    rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'], display: ['"Space Grotesk"', 'Inter', 'sans-serif'] } } } };
+  </script>
+  <script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+  <style>
+    html,
+    body {
+      background: #05060b
+    }
+
+    canvas {
+      display: block
+    }
+
+    @keyframes toastIn {
+      0% {
+        opacity: 0;
+        transform: translateX(calc(var(--dx) * 70px)) scale(.96)
+      }
+
+      14% {
+        opacity: 1;
+        transform: none
+      }
+
+      78% {
+        opacity: 1;
+        transform: none
+      }
+
+      100% {
+        opacity: 0;
+        transform: translateX(calc(var(--dx) * -40px))
+      }
+    }
+
+    .toast-run {
+      animation: toastIn 1.5s cubic-bezier(.2, .8, .2, 1) both
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg)
+      }
+    }
+
+    .spinner {
+      animation: spin .8s linear infinite
+    }
+
+    @keyframes float {
+
+      0%,
+      100% {
+        transform: translateY(0)
+      }
+
+      50% {
+        transform: translateY(-6px)
+      }
+    }
+
+    .float {
+      animation: float 3.2s ease-in-out infinite
+    }
+
+    .scroll-thin::-webkit-scrollbar {
+      width: 6px
+    }
+
+    .scroll-thin::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, .12);
+      border-radius: 9px
+    }
+  </style>
+</head>
+
+<body class="h-full overflow-hidden bg-[#05060b] font-sans text-white antialiased select-none">
+
+  <!-- ============ SAHNA ============ -->
+  <main id="stage" class="fixed inset-0">
+    <!-- kamera yoqilmaganda fon -->
+    <div id="idleBg" class="absolute inset-0 overflow-hidden bg-[#05060b]">
+      <div
+        class="absolute inset-0 opacity-60 [background-image:linear-gradient(rgba(255,255,255,.045)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.045)_1px,transparent_1px)] [background-size:56px_56px] [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_75%)]">
+      </div>
+      <div class="absolute -left-40 top-1/4 h-[30rem] w-[30rem] rounded-full bg-fuchsia-600/20 blur-3xl"></div>
+      <div class="absolute bottom-0 right-1/4 h-[28rem] w-[28rem] rounded-full bg-cyan-500/15 blur-3xl"></div>
+      <div class="absolute left-1/3 top-0 h-[22rem] w-[22rem] rounded-full bg-rose-500/15 blur-3xl"></div>
+    </div>
+
+    <video id="cam" playsinline muted autoplay
+      class="absolute inset-0 h-full w-full -scale-x-100 object-cover opacity-0 transition-opacity duration-700"></video>
+    <div class="pointer-events-none absolute inset-0 bg-black/30"></div>
+    <div
+      class="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_35%,rgba(2,4,12,.78)_100%)]">
+    </div>
+
+    <canvas id="skel" class="pointer-events-none absolute inset-0 h-full w-full"></canvas>
+    <canvas id="gl" class="pointer-events-none absolute inset-0 h-full w-full"></canvas>
+  </main>
+
+  <!-- ============ YUQORI PANEL ============ -->
+  <header
+    class="pointer-events-none absolute left-4 right-4 top-4 flex items-start justify-between gap-3 lg:right-[24.5rem]">
+    <div
+      class="pointer-events-auto flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-950/70 py-2 pl-2.5 pr-4 shadow-lg shadow-black/30">
+      <div
+        class="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-fuchsia-500 via-rose-500 to-orange-400">
+        <svg viewBox="-12 -12 24 24" class="h-5 w-5" fill="none" stroke="white" stroke-width="1.6"
+          stroke-linejoin="round">
+          <path d="M0-9 8-4.5V4.5L0 9-8 4.5V-4.5Z" />
+          <path d="M0 0V9M0 0-8-4.5M0 0 8-4.5" />
+        </svg>
+      </div>
+      <div class="leading-tight">
+        <div class="font-display text-[15px] font-semibold tracking-tight">Figura</div>
+        <div class="text-[11px] text-white/50">Qo'l bilan 3D shakllar</div>
+      </div>
+    </div>
+
+    <div class="pointer-events-auto flex items-center gap-2">
+      <div
+        class="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-xs font-medium text-white/80">
+        <span id="statusDot" class="h-2 w-2 rounded-full bg-white/30"></span>
+        <span id="statusTxt">Kutilmoqda</span>
+      </div>
+      <div
+        class="hidden items-center gap-3 rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 font-mono text-[11px] text-white/70 sm:flex">
+        <span>FPS <b id="fpsRender" class="font-semibold text-emerald-300">--</b></span>
+        <span class="text-white/20">|</span>
+        <span>AI <b id="fpsDetect" class="font-semibold text-sky-300">--</b></span>
+      </div>
+      <button id="panelBtn"
+        class="rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-xs font-semibold lg:hidden">Qo'llanma</button>
+    </div>
+  </header>
+
+  <!-- ============ HUD (pastki markaz) ============ -->
+  <div class="pointer-events-none absolute inset-x-0 bottom-5 flex justify-center px-4 lg:right-[23.5rem]">
+    <div class="flex flex-col items-center gap-3">
+      <div id="hint"
+        class="rounded-full border border-white/10 bg-slate-950/70 px-4 py-1.5 text-xs text-white/70 transition-opacity duration-300">
+        Qo'lingizni kadrga ko'rsating</div>
+      <div
+        class="flex items-center gap-4 rounded-3xl border border-white/10 bg-slate-950/75 py-3 pl-4 pr-6 shadow-2xl shadow-black/40">
+        <div id="hudBadge"
+          class="grid h-14 w-14 place-items-center rounded-2xl text-2xl font-bold font-display text-black"
+          style="background:#22d3ee">1</div>
+        <div class="min-w-[9rem]">
+          <div id="hudSet" class="text-[11px] font-medium uppercase tracking-[.16em] text-white/45">Asosiy shakllar
+          </div>
+          <div id="hudName" class="font-display text-2xl font-semibold leading-tight tracking-tight">Chiziq</div>
+        </div>
+      </div>
+      <div class="hidden gap-2 text-[11px] text-white/45 md:flex">
+        <span><kbd class="rounded bg-white/10 px-1.5 py-0.5 font-mono text-white/70">1–5</kbd> shakl</span>
+        <span><kbd class="rounded bg-white/10 px-1.5 py-0.5 font-mono text-white/70">H</kbd> yurak</span>
+        <span><kbd class="rounded bg-white/10 px-1.5 py-0.5 font-mono text-white/70">← →</kbd> to'plam</span>
+        <span><kbd class="rounded bg-white/10 px-1.5 py-0.5 font-mono text-white/70">F</kbd> ekran</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TOAST ============ -->
+  <div class="pointer-events-none absolute inset-x-0 top-[18%] flex justify-center lg:right-[23.5rem]">
+    <div id="toast"
+      class="opacity-0 flex items-center gap-4 rounded-3xl border border-white/15 bg-slate-950/80 px-7 py-4 shadow-2xl shadow-black/50">
+      <span id="toastArrowL" class="text-2xl text-white/50">←</span>
+      <div class="text-center">
+        <div id="toastIdx" class="text-[11px] font-medium uppercase tracking-[.2em] text-white/50">1 / 3</div>
+        <div id="toastName" class="font-display text-3xl font-semibold tracking-tight">To'plam</div>
+      </div>
+      <span id="toastArrowR" class="text-2xl text-white/50">→</span>
+    </div>
+  </div>
+
+  <!-- ============ O'NG PANEL: QO'LLANMA ============ -->
+  <aside id="panel"
+    class="absolute bottom-4 right-4 top-4 z-20 w-[22.5rem] max-w-[calc(100vw-2rem)] translate-x-[calc(100%+2rem)] overflow-y-auto rounded-3xl border border-white/10 bg-slate-950/80 shadow-2xl shadow-black/50 transition-transform duration-300 scroll-thin lg:translate-x-0">
+    <div class="p-5">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="font-display text-xl font-semibold tracking-tight">Qo'llanma</h2>
+          <p class="mt-0.5 text-xs text-white/50">Qaysi harakat nima qiladi</p>
+        </div>
+        <div class="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-medium text-white/70">16 shakl</div>
+      </div>
+
+      <div class="mt-5 text-[11px] font-semibold uppercase tracking-[.16em] text-white/40">1 · Shakl tanlash</div>
+      <p class="mt-1 text-xs leading-relaxed text-white/55">Bitta qo'lni (ekranning o'ng tomonidagisini) ko'taring va
+        barmoqlar sonini o'zgartiring.</p>
+
+      <div id="tabs" class="mt-3 grid grid-cols-3 gap-1.5 rounded-2xl bg-black/40 p-1"></div>
+      <div id="shapeList" class="mt-3 flex flex-col gap-1.5"></div>
+
+      <div id="rowFist"
+        class="mt-1.5 flex items-center gap-3 rounded-2xl border border-white/5 bg-white/[.03] px-3 py-2.5 transition-colors">
+        <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-black/40" id="heartIcon"></span>
+        <span class="min-w-0 flex-1">
+          <span class="block text-sm font-semibold">Yurak <span class="text-rose-400">❤</span></span>
+          <span class="mt-0.5 block text-[11px] leading-snug text-white/50">Musht qiling — yurak uradi va yuraklar
+            sochiladi</span>
+        </span>
+        <span class="text-lg">✊</span>
+      </div>
+
+      <div class="mt-6 text-[11px] font-semibold uppercase tracking-[.16em] text-white/40">2 · Boshqarish</div>
+      <div class="mt-3 flex flex-col gap-2">
+        <div id="rowMove" class="rounded-2xl border border-white/5 bg-white/[.03] p-3 transition-colors">
+          <div class="flex items-center gap-2.5"><span class="text-xl">🖐️</span><span
+              class="text-sm font-semibold">Qo'lni siljiting</span></div>
+          <p class="mt-1 text-xs leading-relaxed text-white/55">Shakl kaftingiz ustida turadi va qo'lingiz bilan birga
+            yuradi. Qo'lni yaqinlashtirsangiz kattalashadi.</p>
+        </div>
+        <div id="rowPinch" class="rounded-2xl border border-white/5 bg-white/[.03] p-3 transition-colors">
+          <div class="flex items-center gap-2.5"><span class="text-xl">🤏</span><span
+              class="text-sm font-semibold">Ikkinchi qo'l: chimchilang</span></div>
+          <p class="mt-1 text-xs leading-relaxed text-white/55">Bosh va ko'rsatkich barmoqni qisib turing. Qo'llar orasi
+            kengaysa — shakl kattalashadi. Chimchilab siljitsangiz — shakl aylanadi.</p>
+        </div>
+        <div id="rowSwipe" class="rounded-2xl border border-white/5 bg-white/[.03] p-3 transition-colors">
+          <div class="flex items-center gap-2.5"><span class="text-xl">👋</span><span
+              class="text-sm font-semibold">Chapga / o'ngga tez suring</span></div>
+          <p class="mt-1 text-xs leading-relaxed text-white/55">Ochiq kaftni tez siljiting — shakllar to'plami almashadi
+            (Asosiy → 3D jismlar → Maftunkor).</p>
+        </div>
+      </div>
+
+      <div class="mt-5 rounded-2xl border border-dashed border-white/10 p-3 text-[11px] leading-relaxed text-white/45">
+        💡 Yaxshi yoritilgan joyda, kameradan 50–100 sm uzoqlikda turing. Video qurilmangizdan tashqariga chiqmaydi —
+        hammasi brauzerda ishlaydi.
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============ BOSHLANG'ICH EKRAN ============ -->
+  <div id="start" class="absolute inset-0 z-30 grid place-items-center bg-black/55 p-4">
+    <div class="w-full max-w-md rounded-[2rem] border border-white/10 bg-slate-950/90 p-7 shadow-2xl shadow-black/60">
+      <div
+        class="float mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-fuchsia-500 via-rose-500 to-orange-400 shadow-lg shadow-rose-500/30">
+        <svg viewBox="-12 -12 24 24" class="h-9 w-9" fill="none" stroke="white" stroke-width="1.4"
+          stroke-linejoin="round">
+          <path d="M0-9 8-4.5V4.5L0 9-8 4.5V-4.5Z" />
+          <path d="M0 0V9M0 0-8-4.5M0 0 8-4.5" />
+        </svg>
+      </div>
+      <h1 class="mt-5 text-center font-display text-3xl font-semibold tracking-tight">Figura</h1>
+      <p class="mt-2 text-center text-sm leading-relaxed text-white/60">Barmoqlaringiz bilan neon 3D shakllarni
+        yarating, kattalashtiring va aylantiring.</p>
+
+      <ul class="mt-6 space-y-2.5 text-sm text-white/75">
+        <li class="flex items-center gap-3"><span
+            class="grid h-8 w-8 place-items-center rounded-lg bg-white/10">☝️</span>Barmoq soni = shakl turi</li>
+        <li class="flex items-center gap-3"><span
+            class="grid h-8 w-8 place-items-center rounded-lg bg-white/10">✊</span>Musht = yurak ❤</li>
+        <li class="flex items-center gap-3"><span
+            class="grid h-8 w-8 place-items-center rounded-lg bg-white/10">🤏</span>Chimchilash = o'lcham va aylantirish
+        </li>
+        <li class="flex items-center gap-3"><span
+            class="grid h-8 w-8 place-items-center rounded-lg bg-white/10">👋</span>Tez surish = to'plamni almashtirish
+        </li>
+      </ul>
+
+      <button id="btnStart"
+        class="mt-7 flex w-full items-center justify-center gap-2.5 rounded-2xl bg-white py-3.5 text-sm font-semibold text-black transition hover:bg-white/90 active:scale-[.98]">
+        <span id="btnSpin" class="spinner hidden h-4 w-4 rounded-full border-2 border-black/20 border-t-black"></span>
+        <span id="btnTxt">Kamerani yoqish</span>
+      </button>
+      <button id="btnDemo"
+        class="mt-2.5 w-full rounded-2xl border border-white/10 py-3 text-sm font-medium text-white/70 transition hover:bg-white/5">Kamerasiz
+        sinab ko'rish (sichqoncha)</button>
+      <p id="startErr" class="mt-4 hidden rounded-xl bg-rose-500/10 p-3 text-xs leading-relaxed text-rose-300"></p>
+    </div>
+  </div>
+
+  <!-- ============ DASTUR ============ -->
+  <script type="module">
+    import * as THREE from 'three';
+    import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
+    import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
+    import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+
+    const $ = (id) => document.getElementById(id);
+    const TAU = Math.PI * 2;
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+    /* ------------------------------------------------------------------ */
+    /*  SHAKLLAR (geometriya — chiziq segmentlari)                          */
+    /* ------------------------------------------------------------------ */
+    function edges(g, th = 1) { const e = new THREE.EdgesGeometry(g, th); const a = Array.from(e.attributes.position.array); g.dispose(); e.dispose(); return a; }
+    class Seg {
+      constructor() { this.a = []; }
+      l(p, q) { this.a.push(p[0], p[1], p[2], q[0], q[1], q[2]); }
+      poly(pts, closed = true) { const n = closed ? pts.length : pts.length - 1; for (let i = 0; i < n; i++) this.l(pts[i], pts[(i + 1) % pts.length]); }
+    }
+    const circle = (r, n, f) => Array.from({ length: n }, (_, i) => f(Math.cos(i / n * TAU) * r, Math.sin(i / n * TAU) * r));
+
+    function normalize(arr, target = 1) {
+      let m = 0;
+      for (let i = 0; i < arr.length; i += 3) m = Math.max(m, Math.hypot(arr[i], arr[i + 1], arr[i + 2]));
+      const k = m ? target / m : 1;
+      return new Float32Array(arr.map(v => v * k));
+    }
+
+    const BUILD = {
+      line() { const s = new Seg(); s.l([-1, 0, 0], [1, 0, 0]); s.l([-1, -.12, 0], [-1, .12, 0]); s.l([1, -.12, 0], [1, .12, 0]); s.l([-1, 0, -.12], [-1, 0, .12]); s.l([1, 0, -.12], [1, 0, .12]); return s.a; },
+      rect() { return edges(new THREE.BoxGeometry(1.7, 1, .06)); },
+      tri() {
+        const s = new Seg(); const P = (z) => [[0, .95, z], [-1, -.7, z], [1, -.7, z]];
+        s.poly(P(.05)); s.poly(P(-.05)); P(.05).forEach((p, i) => s.l(p, P(-.05)[i])); return s.a;
+      },
+      tetra() { return edges(new THREE.TetrahedronGeometry(1)); },
+      cube() { return edges(new THREE.BoxGeometry(1.15, 1.15, 1.15)); },
+      octa() { return edges(new THREE.OctahedronGeometry(1)); },
+      dodeca() { return edges(new THREE.DodecahedronGeometry(1)); },
+      icosa() { return edges(new THREE.IcosahedronGeometry(1)); },
+      cone() {
+        const s = new Seg(); const base = circle(.8, 48, (x, z) => [x, -.7, z]); s.poly(base);
+        for (let i = 0; i < 48; i += 4) s.l(base[i], [0, .95, 0]); return s.a;
+      },
+      hex() {
+        const s = new Seg(); const top = circle(.85, 6, (x, z) => [x, .65, z]), bot = circle(.85, 6, (x, z) => [x, -.65, z]);
+        s.poly(top); s.poly(bot); top.forEach((p, i) => s.l(p, bot[i])); return s.a;
+      },
+      diamond() {
+        const s = new Seg(), n = 8;
+        const girdle = circle(.85, n, (x, z) => [x, 0, z]), table = circle(.48, n, (x, z) => [x, .5, z]), bot = [0, -1, 0];
+        s.poly(girdle); s.poly(table);
+        for (let i = 0; i < n; i++) { s.l(girdle[i], table[i]); s.l(girdle[i], table[(i + 1) % n]); s.l(girdle[i], bot); }
+        return s.a;
+      },
+      star() {
+        const s = new Seg(), pts = [];
+        for (let i = 0; i < 10; i++) { const r = i % 2 ? .45 : 1, a = i / 10 * TAU + Math.PI / 2; pts.push([Math.cos(a) * r, Math.sin(a) * r, 0]); }
+        s.poly(pts); pts.forEach(p => { s.l(p, [0, 0, .3]); s.l(p, [0, 0, -.3]); }); return s.a;
+      },
+      torus() {
+        const s = new Seg(), R = .72, r = .28;
+        const P = (u, v) => [(R + r * Math.cos(v)) * Math.cos(u), r * Math.sin(v), (R + r * Math.cos(v)) * Math.sin(u)];
+        for (let i = 0; i < 24; i++) { const u = i / 24 * TAU; const ring = Array.from({ length: 16 }, (_, j) => P(u, j / 16 * TAU)); s.poly(ring); }
+        for (let k = 0; k < 6; k++) { const v = k / 6 * TAU; s.poly(Array.from({ length: 64 }, (_, j) => P(j / 64 * TAU, v))); }
+        return s.a;
+      },
+      knot() {
+        const s = new Seg(), P = (t, k) => { const r = (Math.cos(3 * t) + 2) * k; return [r * Math.cos(2 * t), r * Math.sin(2 * t), -Math.sin(3 * t) * k * 1.1]; };
+        for (const k of [.9, 1, 1.1]) s.poly(Array.from({ length: 200 }, (_, i) => P(i / 200 * TAU, k)));
+        return s.a;
+      },
+      sphere() {
+        const s = new Seg();
+        for (let i = 1; i < 7; i++) { const a = i / 7 * Math.PI - Math.PI / 2; s.poly(circle(Math.cos(a), 40, (x, z) => [x, Math.sin(a), z])); }
+        for (let i = 0; i < 12; i++) { const b = i / 12 * Math.PI; s.poly(circle(1, 40, (x, y) => [x * Math.cos(b), y, x * Math.sin(b)])); }
+        return s.a;
+      },
+      heart() {
+        const s = new Seg(), N = 72, LAYERS = 11, D = .42;
+        const H = (t) => [16 * Math.pow(Math.sin(t), 3) / 16, (13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t) + 2.6) / 16];
+        const layer = (z) => { const f = Math.sqrt(Math.max(0, 1 - (z / D) ** 2)); return Array.from({ length: N }, (_, i) => { const [x, y] = H(i / N * TAU); return [x * f, y * f, z]; }); };
+        const zs = Array.from({ length: LAYERS }, (_, i) => (i / (LAYERS - 1) * 2 - 1) * D * .98);
+        const L = zs.map(layer);
+        L.forEach(p => s.poly(p));
+        for (let i = 0; i < N; i += 6) s.poly(L.map(p => p[i]), false);
+        return s.a;
+      }
+    };
+
+    const SETS = [
+      {
+        name: "Asosiy shakllar", shapes: [
+          { k: 'line', n: "Chiziq", c: '#22d3ee' },
+          { k: 'rect', n: "To'rtburchak", c: '#4ade80' },
+          { k: 'tri', n: "Uchburchak", c: '#facc15' },
+          { k: 'tetra', n: "Tetraedr", c: '#fbbf24' },
+          { k: 'cube', n: "Kub", c: '#fb923c' }]
+      },
+      {
+        name: "3D jismlar", shapes: [
+          { k: 'octa', n: "Oktaedr", c: '#f87171' },
+          { k: 'dodeca', n: "Dodekaedr", c: '#f472b6' },
+          { k: 'icosa', n: "Ikosaedr", c: '#e879f9' },
+          { k: 'cone', n: "Konus", c: '#a78bfa' },
+          { k: 'hex', n: "Olti yoqli prizma", c: '#818cf8' }]
+      },
+      {
+        name: "Maftunkor", shapes: [
+          { k: 'diamond', n: "Olmos", c: '#38bdf8' },
+          { k: 'star', n: "Yulduz", c: '#fde047' },
+          { k: 'torus', n: "Halqa", c: '#2dd4bf' },
+          { k: 'knot', n: "Tugun", c: '#a3e635' },
+          { k: 'sphere', n: "Globus", c: '#bfdbfe' }]
+      }
+    ];
+    const HEART = { k: 'heart', n: "Yurak", c: '#ff2d6f' };
+
+    const DATA = {};
+    const getData = (k) => DATA[k] || (DATA[k] = (() => {
+      const arr = normalize(BUILD[k]());
+      const geo = new LineSegmentsGeometry(); geo.setPositions(arr);
+      return { arr, geo };
+    })());
+
+    /* kichik SVG ikonkalar (xuddi shu geometriyadan) */
+    function icon(k, color) {
+      const a = getData(k).arr, ry = .75, rx = -.5, cy = Math.cos(ry), sy = Math.sin(ry), cx = Math.cos(rx), sx = Math.sin(rx);
+      const P = (i) => { const x = a[i], y = a[i + 1], z = a[i + 2]; const x1 = x * cy + z * sy, z1 = -x * sy + z * cy; return [x1, y * cx - z1 * sx]; };
+      let d = '';
+      for (let i = 0; i < a.length; i += 6) { const p = P(i), q = P(i + 3); d += `M${p[0].toFixed(2)} ${(-p[1]).toFixed(2)}L${q[0].toFixed(2)} ${(-q[1]).toFixed(2)}`; }
+      return `<svg viewBox="-1.15 -1.15 2.3 2.3" class="h-7 w-7" fill="none" stroke="${color}" stroke-width=".085" stroke-linecap="round"><path d="${d}"/></svg>`;
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  HOLAT                                                               */
+    /* ------------------------------------------------------------------ */
+    const state = { set: 0, cur: SETS[0].shapes[0], demo: false, camOn: false };
+    let W = innerWidth, H = innerHeight;
+
+    /* ------------------------------------------------------------------ */
+    /*  THREE                                                               */
+    /* ------------------------------------------------------------------ */
+    const glCanvas = $('gl');
+    const renderer = new THREE.WebGLRenderer({ canvas: glCanvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+    let PR = Math.min(devicePixelRatio || 1, 2);
+    renderer.setPixelRatio(PR);
+    renderer.setClearColor(0x000000, 0);
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(30, W / H, 10, 6000);
+    const rig = new THREE.Group(); scene.add(rig);
+
+    const glowTex = (() => {
+      const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+      const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(.35, 'rgba(255,255,255,.35)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = gr; g.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(c);
+    })();
+    const heartTex = (() => {
+      const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+      g.translate(64, 62); g.scale(3.1, -3.1);
+      g.beginPath();
+      for (let i = 0; i <= 80; i++) { const t = i / 80 * TAU, x = 16 * Math.pow(Math.sin(t), 3), y = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t) + 1; i ? g.lineTo(x, y) : g.moveTo(x, y); }
+      g.closePath(); g.fillStyle = '#fff'; g.shadowColor = '#fff'; g.shadowBlur = 3; g.fill();
+      return new THREE.CanvasTexture(c);
+    })();
+
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, transparent: true, depthTest: false, depthWrite: false, opacity: 0 }));
+    glow.position.z = -50; scene.add(glow);
+
+    const LAYERS = [];
+    const GHOSTS = 6;
+    for (let i = 0; i <= GHOSTS; i++) {
+      const mat = new LineMaterial({ color: 0xffffff, linewidth: i === 0 ? 3 : 2.2, transparent: true, opacity: 0, depthTest: false, depthWrite: false });
+      mat.resolution.set(W, H);
+      const mesh = new LineSegments2(getData('line').geo, mat); mesh.frustumCulled = false; mesh.renderOrder = 10 - i;
+      scene.add(mesh);
+      LAYERS.push({ mesh, mat, lag: i * 0.04, op: i === 0 ? 1 : 0.55 * Math.pow(1 - i / (GHOSTS + 1), 1.6) });
+    }
+
+    /* zarrachalar */
+    class Particles {
+      constructor(max, tex) {
+        this.max = max; this.i = 0;
+        this.pos = new Float32Array(max * 3); this.col = new Float32Array(max * 3);
+        this.a = new Float32Array(max); this.sz = new Float32Array(max);
+        this.life = new Float32Array(max); this.ml = new Float32Array(max);
+        this.vx = new Float32Array(max); this.vy = new Float32Array(max); this.ph = new Float32Array(max); this.sw = new Float32Array(max);
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.BufferAttribute(this.pos, 3));
+        g.setAttribute('aColor', new THREE.BufferAttribute(this.col, 3));
+        g.setAttribute('aAlpha', new THREE.BufferAttribute(this.a, 1));
+        g.setAttribute('aSize', new THREE.BufferAttribute(this.sz, 1));
+        this.mat = new THREE.ShaderMaterial({
+          uniforms: { map: { value: tex }, uPR: { value: PR } },
+          vertexShader: 'attribute float aAlpha;attribute float aSize;attribute vec3 aColor;varying float vA;varying vec3 vC;uniform float uPR;void main(){vA=aAlpha;vC=aColor;gl_PointSize=aSize*uPR;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+          fragmentShader: 'uniform sampler2D map;varying float vA;varying vec3 vC;void main(){float t=texture2D(map,gl_PointCoord).a;gl_FragColor=vec4(vC,t*vA);}',
+          transparent: true, depthTest: false, depthWrite: false
+        });
+        this.points = new THREE.Points(g, this.mat); this.points.frustumCulled = false; this.geo = g;
+      }
+      spawn(x, y, vx, vy, life, size, c, sway = 0) {
+        const i = this.i; this.i = (i + 1) % this.max;
+        this.pos[i * 3] = x; this.pos[i * 3 + 1] = y; this.pos[i * 3 + 2] = 0;
+        this.col[i * 3] = c.r; this.col[i * 3 + 1] = c.g; this.col[i * 3 + 2] = c.b;
+        this.vx[i] = vx; this.vy[i] = vy; this.life[i] = this.ml[i] = life; this.sz[i] = size; this.ph[i] = Math.random() * 6.28; this.sw[i] = sway; this.a[i] = 0;
+      }
+      update(dt, t) {
+        for (let i = 0; i < this.max; i++) {
+          if (this.life[i] <= 0) { this.a[i] = 0; continue; }
+          this.life[i] -= dt; const u = Math.max(0, this.life[i] / this.ml[i]);
+          this.pos[i * 3] += (this.vx[i] + Math.sin(t * 3 + this.ph[i]) * this.sw[i]) * dt; this.pos[i * 3 + 1] += this.vy[i] * dt;
+          this.a[i] = Math.min(1, u * 2.2) * Math.min(1, (1 - u) * 10);
+        }
+        this.geo.attributes.position.needsUpdate = this.geo.attributes.aAlpha.needsUpdate = true;
+        this.geo.attributes.aColor.needsUpdate = this.geo.attributes.aSize.needsUpdate = true;
+      }
+    }
+    const sparks = new Particles(180, glowTex), hearts = new Particles(70, heartTex);
+    scene.add(sparks.points, hearts.points);
+
+    /* ------------------------------------------------------------------ */
+    /*  O'LCHAM                                                             */
+    /* ------------------------------------------------------------------ */
+    const skel = $('skel'), sctx = skel.getContext('2d');
+    let SPR = Math.min(devicePixelRatio || 1, 1.5);
+    function resize() {
+      W = innerWidth; H = innerHeight;
+      renderer.setPixelRatio(PR); renderer.setSize(W, H, false);
+      camera.aspect = W / H; camera.position.z = (H / 2) / Math.tan(THREE.MathUtils.degToRad(15)); camera.updateProjectionMatrix();
+      LAYERS.forEach(l => l.mat.resolution.set(W, H));
+      sparks.mat.uniforms.uPR.value = hearts.mat.uniforms.uPR.value = PR;
+      skel.width = W * SPR; skel.height = H * SPR; sctx.setTransform(SPR, 0, 0, SPR, 0, 0);
+    }
+    addEventListener('resize', resize); resize();
+
+    /* ------------------------------------------------------------------ */
+    /*  QO'L KUZATISH                                                       */
+    /* ------------------------------------------------------------------ */
+    const cam = $('cam');
+    let landmarker = null, lastVT = -1, detCount = 0;
+
+    const mkSlot = () => ({
+      lm: null, sm: null, seen: -1e9, on: false, alpha: 0, count: -1, cand: -2, candN: 0, pinch: false, ratio: 1,
+      palm: { x: 0, y: 0 }, size: 90, roll: 0, pp: { x: 0, y: 0 }, ppPrev: null, hist: [], pts: null
+    });
+    const slots = { shape: mkSlot(), ctrl: mkSlot() };
+
+    const d2 = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+    const d3 = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+
+    function mapPt(l) {
+      const vw = cam.videoWidth || 1280, vh = cam.videoHeight || 720, s = Math.max(W / vw, H / vh), dw = vw * s, dh = vh * s;
+      return { x: (1 - l.x) * dw - (dw - W) / 2, y: l.y * dh - (dh - H) / 2, z: -l.z * dw };
+    }
+    function countFingers(p) {
+      const tips = [8, 12, 16, 20], pips = [6, 10, 14, 18], w = p[0];
+      let f = 0;
+      for (let i = 0; i < 4; i++) if (d3(p[tips[i]], w) > d3(p[pips[i]], w) * 1.12) f++;
+      if (f === 0) return 0;
+      const size = d3(p[0], p[9]);
+      const thumb = d3(p[4], p[17]) > d3(p[3], p[17]) * 1.08 && d3(p[4], p[5]) > size * .48;
+      return f + (thumb ? 1 : 0);
+    }
+    function assign(slot, h, now) {
+      if (!slot.sm || now - slot.seen > 400) slot.sm = h.px.map(q => ({ ...q }));
+      slot.lm = h.px; slot.seen = now;
+      const c = countFingers(h.px);
+      if (c === slot.cand) slot.candN++; else { slot.cand = c; slot.candN = 1; }
+      if (slot.candN >= 4) slot.count = c;
+    }
+    let detTimes = [];
+    function onResults(res, now) {
+      const hands = [];
+      for (const L of (res.landmarks || [])) {
+        const px = L.map(mapPt);
+        const palm = { x: 0, y: 0 }; for (const i of [0, 5, 9, 13, 17]) { palm.x += px[i].x / 5; palm.y += px[i].y / 5; }
+        hands.push({ px, palm });
+      }
+      if (hands.length >= 2) {
+        hands.sort((a, b) => a.palm.x - b.palm.x);
+        assign(slots.ctrl, hands[0], now); assign(slots.shape, hands[hands.length - 1], now);
+      } else if (hands.length === 1) {
+        const h = hands[0];
+        const dS = now - slots.shape.seen < 500 ? d2(h.palm, slots.shape.palm) : Infinity;
+        const dC = now - slots.ctrl.seen < 500 ? d2(h.palm, slots.ctrl.palm) : Infinity;
+        assign(dC < dS ? slots.ctrl : slots.shape, h, now);
+      }
+      detTimes.push(now);
+    }
+
+    function derive(s) {
+      const p = s.sm; if (!p) return;
+      s.palm.x = s.palm.y = 0; for (const i of [0, 5, 9, 13, 17]) { s.palm.x += p[i].x / 5; s.palm.y += p[i].y / 5; }
+      s.size = Math.max(30, d2(p[0], p[9]));
+      s.roll = Math.atan2(p[9].x - p[0].x, -(p[9].y - p[0].y));
+      s.pp.x = (p[4].x + p[8].x) / 2; s.pp.y = (p[4].y + p[8].y) / 2;
+      s.ratio = d2(p[4], p[8]) / s.size;
+      if (s.ratio < .34) s.pinch = true; else if (s.ratio > .52) s.pinch = false;
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  INTERFEYS                                                           */
+    /* ------------------------------------------------------------------ */
+    const hex2rgb = (h) => new THREE.Color(h);
+    const panelState = {};
+    function setOn(id, on, color) {
+      if (panelState[id] === on) return; panelState[id] = on;
+      const el = $(id); if (!el) return;
+      el.style.borderColor = on ? (color || '#fff') + '99' : ''; el.style.background = on ? (color || '#fff') + '1c' : '';
+    }
+    function renderPanel() {
+      const set = SETS[state.set];
+      $('tabs').innerHTML = SETS.map((s, i) => `<button data-set="${i}" class="rounded-xl px-2 py-2 text-[11px] font-semibold leading-tight transition ${i === state.set ? 'bg-white text-black' : 'text-white/60 hover:bg-white/10'}">${s.name}</button>`).join('');
+      $('shapeList').innerHTML = set.shapes.map((sh, i) => `
+    <button data-i="${i}" id="row-${i}" class="flex w-full items-center gap-3 rounded-2xl border border-white/5 bg-white/[.03] px-3 py-2.5 text-left transition-colors hover:bg-white/[.06]">
+      <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-black/40">${icon(sh.k, sh.c)}</span>
+      <span class="min-w-0 flex-1">
+        <span class="block truncate text-sm font-semibold">${sh.n}</span>
+        <span class="mt-1.5 flex gap-1">${[0, 1, 2, 3, 4].map(j => `<i class="h-1.5 w-1.5 rounded-full" style="background:${j <= i ? sh.c : 'rgba(255,255,255,.14)'}"></i>`).join('')}</span>
+      </span>
+      <span class="text-right text-[11px] leading-tight text-white/45"><b class="block font-display text-lg font-semibold text-white/85">${i + 1}</b>barmoq</span>
+    </button>`).join('');
+      for (const k in panelState) if (k.startsWith('row-')) delete panelState[k];
+      highlight();
+    }
+    function highlight() {
+      SETS[state.set].shapes.forEach((sh, i) => setOn('row-' + i, state.cur === sh, sh.c));
+      setOn('rowFist', state.cur === HEART, HEART.c);
+    }
+    function setHud() {
+      const c = state.cur, idx = SETS[state.set].shapes.indexOf(c);
+      const b = $('hudBadge'); b.style.background = c.c; b.style.boxShadow = `0 0 30px ${c.c}66`;
+      b.textContent = c === HEART ? '❤' : (idx >= 0 ? idx + 1 : '•');
+      b.style.color = c === HEART ? '#fff' : '#05060b';
+      $('hudName').textContent = c.n; $('hudSet').textContent = c === HEART ? 'Musht · maxsus' : SETS[state.set].name;
+    }
+    function toast(text, idxText, dir) {
+      const t = $('toast'); $('toastName').textContent = text; $('toastIdx').textContent = idxText;
+      t.style.setProperty('--dx', dir); t.classList.remove('toast-run'); void t.offsetWidth; t.classList.add('toast-run');
+    }
+
+    /* shakl almashtirish */
+    const targetColor = new THREE.Color(SETS[0].shapes[0].c), curColor = targetColor.clone();
+    const pop = { x: 1, v: 0 };
+    let spinBurst = 0, burstHearts = 0;
+    function selectShape(sh) {
+      if (sh === state.cur) return;
+      state.cur = sh;
+      const d = getData(sh.k); LAYERS.forEach(l => { l.mesh.geometry = d.geo; });
+      targetColor.set(sh.c); pop.x = .1; pop.v = 0; spinBurst = 7;
+      if (sh === HEART) burstHearts = 16;
+      setHud(); highlight();
+    }
+    function changeSet(dir) {
+      state.set = (state.set + dir + SETS.length) % SETS.length; renderPanel();
+      toast(SETS[state.set].name, `${state.set + 1} / ${SETS.length}`, dir);
+      lockUntil = performance.now() + 700;
+      if (state.cur !== HEART) { const i = Math.max(0, SETS.flatMap(s => s.shapes).indexOf(state.cur) % 5); selectShape(SETS[state.set].shapes[i]); } else setHud();
+    }
+    let lockUntil = 0;
+    $('tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-set]'); if (!b) return; const n = +b.dataset.set; if (n !== state.set) { state.set = n; renderPanel(); selectShape(SETS[n].shapes[Math.max(0, SETS[n].shapes.indexOf(state.cur))] || SETS[n].shapes[0]); setHud(); } });
+    $('shapeList').addEventListener('click', (e) => { const b = e.target.closest('[data-i]'); if (b) { selectShape(SETS[state.set].shapes[+b.dataset.i]); lockUntil = performance.now() + 1500; } });
+    $('rowFist').addEventListener('click', () => { selectShape(HEART); lockUntil = performance.now() + 1500; });
+    $('panelBtn').addEventListener('click', () => { const p = $('panel'); p.classList.toggle('translate-x-[calc(100%+2rem)]'); });
+    $('heartIcon').innerHTML = icon('heart', HEART.c);
+
+    addEventListener('keydown', (e) => {
+      const k = e.key.toLowerCase();
+      if (k >= '1' && k <= '5') { selectShape(SETS[state.set].shapes[+k - 1]); lockUntil = performance.now() + 1500; }
+      else if (k === 'h' || k === '0') { selectShape(HEART); lockUntil = performance.now() + 1500; }
+      else if (k === 'arrowright' || k === ']') changeSet(1);
+      else if (k === 'arrowleft' || k === '[') changeSet(-1);
+      else if (k === 'f') { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.(); }
+    });
+
+    function setStatus(txt, color) { $('statusTxt').textContent = txt; $('statusDot').style.background = color; }
+
+    /* ------------------------------------------------------------------ */
+    /*  KAMERA VA MODEL                                                     */
+    /* ------------------------------------------------------------------ */
+    const MP = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+    const MODEL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
+
+    async function startCamera() {
+      const btn = $('btnStart'), err = $('startErr');
+      err.classList.add('hidden'); btn.disabled = true; $('btnSpin').classList.remove('hidden'); $('btnTxt').textContent = 'Model yuklanmoqda…';
+      try {
+        const [stream, mod] = await Promise.all([
+          navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 60 } }, audio: false }),
+          import(MP + '/vision_bundle.mjs')
+        ]);
+        const files = await mod.FilesetResolver.forVisionTasks(MP + '/wasm');
+        const opts = (delegate) => ({ baseOptions: { modelAssetPath: MODEL, delegate }, runningMode: 'VIDEO', numHands: 2, minHandDetectionConfidence: .5, minHandPresenceConfidence: .5, minTrackingConfidence: .5 });
+        try { landmarker = await mod.HandLandmarker.createFromOptions(files, opts('GPU')); }
+        catch { landmarker = await mod.HandLandmarker.createFromOptions(files, opts('CPU')); }
+        cam.srcObject = stream; await cam.play();
+        cam.classList.remove('opacity-0'); $('idleBg').classList.add('opacity-0');
+        state.camOn = true; state.demo = false;
+        $('start').classList.add('hidden'); setStatus('Kamera faol', '#34d399');
+      } catch (e) {
+        console.error(e);
+        btn.disabled = false; $('btnSpin').classList.add('hidden'); $('btnTxt').textContent = 'Qayta urinish';
+        err.textContent = (e && e.name === 'NotAllowedError') ? 'Kameraga ruxsat berilmadi. Brauzer manzil satridagi kamera belgisidan ruxsat bering yoki sichqoncha rejimini sinab ko\'ring.'
+          : 'Kamera yoki qo\'l modelini yuklab bo\'lmadi (' + (e && (e.message || e.name) || 'xato') + '). Internetni tekshiring yoki sichqoncha rejimini sinab ko\'ring.';
+        err.classList.remove('hidden');
+      }
+    }
+    function startDemo() { state.demo = true; $('start').classList.add('hidden'); setStatus('Sichqoncha rejimi', '#fbbf24'); $('hint').textContent = 'Sichqonchani siljiting · g\'ildirak = o\'lcham · bosib sudrang = aylantirish'; }
+    $('btnStart').addEventListener('click', startCamera);
+    $('btnDemo').addEventListener('click', startDemo);
+
+    /* sichqoncha rejimi */
+    const mouse = { x: innerWidth * .4, y: innerHeight * .5, down: false, lx: 0, ly: 0 };
+    let demoRadius = 140;
+    addEventListener('pointermove', (e) => { if (mouse.down) { rot.wy = clamp((e.clientX - mouse.lx) * 0.35, -9, 9); rot.wx = clamp((e.clientY - mouse.ly) * 0.35, -9, 9); } mouse.x = e.clientX; mouse.y = e.clientY; mouse.lx = e.clientX; mouse.ly = e.clientY; });
+    addEventListener('pointerdown', (e) => { if (e.target.closest('aside,button,header')) return; mouse.down = true; mouse.lx = e.clientX; mouse.ly = e.clientY; });
+    addEventListener('pointerup', () => { mouse.down = false; });
+    addEventListener('wheel', (e) => { demoRadius = clamp(demoRadius * (e.deltaY > 0 ? .93 : 1.07), 40, 380); }, { passive: true });
+
+    /* ------------------------------------------------------------------ */
+    /*  ASOSIY TSIKL                                                        */
+    /* ------------------------------------------------------------------ */
+    const rot = { x: .35, y: .6, z: 0, wx: .3, wy: .7 };
+    const anchor = { x: W * .4, y: H * .45 }; let radius = 130, vis = 0;
+    const hist = [];
+    const sparkAcc = { s: 0, h: 0 };
+    const tmpV = new THREE.Vector3(), tmpC = new THREE.Color(), white = new THREE.Color(1, 1, 1);
+    const swipeLog = { last: 0 };
+    const BONES = [[0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8], [5, 9], [9, 10], [10, 11], [11, 12], [9, 13], [13, 14], [14, 15], [15, 16], [13, 17], [17, 18], [18, 19], [19, 20], [0, 17]];
+
+    let last = performance.now(), frames = 0, fpsT = last, lowCount = 0, shown = { f: 0, d: 0 };
+
+    function updateSlot(s, dt, now) {
+      s.on = now - s.seen < 260;
+      s.alpha += ((s.on ? 1 : 0) - s.alpha) * (1 - Math.exp(-dt * 12));
+      if (s.sm && s.lm) { const a = 1 - Math.exp(-dt * 30); for (let i = 0; i < 21; i++) { const p = s.sm[i], t = s.lm[i]; p.x += (t.x - p.x) * a; p.y += (t.y - p.y) * a; p.z += (t.z - p.z) * a; } derive(s); }
+    }
+
+    function frame(now) {
+      requestAnimationFrame(frame);
+      const dt = Math.min(.05, (now - last) / 1000); last = now; const t = now / 1000;
+
+      if (landmarker && cam.readyState >= 2 && cam.currentTime !== lastVT) {
+        lastVT = cam.currentTime;
+        try { onResults(landmarker.detectForVideo(cam, now), now); } catch (e) { /* kadr tashlab ketiladi */ }
+      }
+
+      updateSlot(slots.shape, dt, now); updateSlot(slots.ctrl, dt, now);
+      const S = slots.shape, C = slots.ctrl;
+      const handsOn = (S.on ? 1 : 0) + (C.on ? 1 : 0);
+
+      /* --- imo-ishoralar --- */
+      if (state.camOn) {
+        if (S.on && S.count >= 0 && now > lockUntil) {
+          const want = S.count === 0 ? HEART : SETS[state.set].shapes[S.count - 1];
+          selectShape(want);
+        }
+        // tez surish
+        for (const s of [S, C]) {
+          if (!s.on || s.count < 4) { s.hist.length = 0; continue; }
+          s.hist.push({ t: now, x: s.palm.x, y: s.palm.y });
+          while (s.hist.length && now - s.hist[0].t > 420) s.hist.shift();
+          if (s.hist.length > 4 && now - swipeLog.last > 1100) {
+            const a = s.hist[0], b = s.hist[s.hist.length - 1], dx = b.x - a.x, dy = b.y - a.y;
+            if (Math.abs(dx) > W * .27 && Math.abs(dy) < Math.abs(dx) * .6) { swipeLog.last = now; s.hist.length = 0; changeSet(dx > 0 ? 1 : -1); flash('rowSwipe'); }
+          }
+        }
+      }
+
+      /* --- joylashuv, o'lcham, aylanish --- */
+      const present = state.demo || S.on;
+      vis += ((present ? 1 : 0) - vis) * (1 - Math.exp(-dt * (present ? 10 : 7)));
+      const pinching = state.camOn && C.on && C.pinch && S.on;
+      let radT;
+      if (state.demo) {
+        anchor.x += (mouse.x - anchor.x) * (1 - Math.exp(-dt * 14)); anchor.y += (mouse.y - anchor.y) * (1 - Math.exp(-dt * 14)); radT = demoRadius;
+      } else if (S.on) {
+        radT = clamp(S.size * .95, 50, 220);
+        if (pinching) radT = clamp(d2(C.pp, S.palm) * .45, 40, 380);
+        const ux = Math.sin(S.roll), uy = -Math.cos(S.roll);
+        const tx = S.palm.x + ux * (S.size * 1.45 + radius * .95), ty = S.palm.y + uy * (S.size * 1.45 + radius * .95);
+        const k = 1 - Math.exp(-dt * 18);
+        anchor.x += (clamp(tx, 30, W - 30) - anchor.x) * k; anchor.y += (clamp(ty, 30, H - 30) - anchor.y) * k;
+      } else radT = radius;
+      radius += (radT - radius) * (1 - Math.exp(-dt * 9));
+
+      if (pinching) {
+        if (C.ppPrev) { const dx = C.pp.x - C.ppPrev.x, dy = C.pp.y - C.ppPrev.y; rot.wy += (clamp(dx / dt * .012, -9, 9) - rot.wy) * .35; rot.wx += (clamp(dy / dt * .012, -9, 9) - rot.wx) * .35; }
+        C.ppPrev = { x: C.pp.x, y: C.pp.y };
+      } else {
+        C.ppPrev = null;
+        if (!mouse.down) { const k = 1 - Math.exp(-dt * 2.2); rot.wy += (.7 - rot.wy) * k; rot.wx += (.3 - rot.wx) * k; }
+      }
+      if (spinBurst > 0) { rot.wy += spinBurst; spinBurst = 0; }
+      rot.y += rot.wy * dt; rot.x += rot.wx * dt;
+      const rollT = (!state.demo && S.on) ? S.roll * .6 : 0; rot.z += (rollT - rot.z) * (1 - Math.exp(-dt * 8));
+
+      pop.v += ((1 - pop.x) * 240 - pop.v * 15) * dt; pop.x += pop.v * dt;
+      const beat = state.cur === HEART ? 1 + .07 * Math.pow(Math.max(0, Math.sin(t * 7)), 3) + .03 * Math.pow(Math.max(0, Math.sin(t * 7 - 1.1)), 3) : 1;
+      const scale = Math.max(.001, radius * vis * pop.x * beat);
+
+      hist.push({ t, x: anchor.x - W / 2, y: H / 2 - anchor.y, rx: rot.x, ry: rot.y, rz: rot.z, s: scale });
+      while (hist.length > 60) hist.shift();
+
+      curColor.lerp(targetColor, 1 - Math.exp(-dt * 12));
+      tmpC.copy(curColor).lerp(white, .22);
+      for (let i = 0; i < LAYERS.length; i++) {
+        const L = LAYERS[i], want = t - L.lag; let h = hist[0];
+        for (let j = hist.length - 1; j >= 0; j--) if (hist[j].t <= want) { h = hist[j]; break; }
+        const m = L.mesh; m.position.set(h.x, h.y, 0); m.rotation.set(h.rx, h.ry, h.rz, 'YXZ'); m.scale.setScalar(h.s);
+        L.mat.color.copy(tmpC); L.mat.opacity = clamp(L.op * (i === 0 ? vis : vis * .9), 0, 1); m.visible = L.mat.opacity > .01;
+      }
+      rig.position.set(anchor.x - W / 2, H / 2 - anchor.y, 0); rig.rotation.set(rot.x, rot.y, rot.z, 'YXZ'); rig.scale.setScalar(scale); rig.updateMatrixWorld();
+      glow.position.set(rig.position.x, rig.position.y, -50); glow.scale.setScalar(scale * 3.4); glow.material.color.copy(curColor); glow.material.opacity = .26 * vis;
+
+      /* --- zarrachalar --- */
+      if (vis > .3) {
+        const arr = getData(state.cur.k).arr, n = arr.length / 3;
+        sparkAcc.s += dt * 70;
+        while (sparkAcc.s >= 1) {
+          sparkAcc.s -= 1; const i = Math.floor(Math.random() * n) * 3;
+          tmpV.set(arr[i], arr[i + 1], arr[i + 2]).applyMatrix4(rig.matrixWorld);
+          const a = Math.random() * TAU, sp = 15 + Math.random() * 45;
+          sparks.spawn(tmpV.x, tmpV.y, Math.cos(a) * sp, Math.sin(a) * sp + 18, .7 + Math.random() * .7, 6 + Math.random() * 9, tmpC.clone().lerp(white, Math.random() * .6));
+        }
+        if (state.cur === HEART) sparkAcc.h += dt * 7;
+        if (burstHearts > 0) { sparkAcc.h += burstHearts; burstHearts = 0; }
+        while (sparkAcc.h >= 1) {
+          sparkAcc.h -= 1; const a = Math.random() * TAU, r = scale * (.3 + Math.random() * .8);
+          const c = new THREE.Color().setHSL(.95 + Math.random() * .05, 1, .55 + Math.random() * .25);
+          hearts.spawn(rig.position.x + Math.cos(a) * r, rig.position.y + Math.sin(a) * r * .8, (Math.random() - .5) * 30, 45 + Math.random() * 90, 1.8 + Math.random() * 1.6, 14 + Math.random() * 26, c, 18 + Math.random() * 22);
+        }
+      }
+      sparks.update(dt, t); hearts.update(dt, t);
+
+      /* --- panel jonli ko'rsatkichlari --- */
+      if (state.camOn) {
+        setOn('rowMove', S.on, '#34d399');
+        setOn('rowPinch', pinching, '#38bdf8');
+        if (now - swipeLog.last > 900) setOn('rowSwipe', false);
+        const hint = $('hint'); const show = handsOn === 0;
+        hint.style.opacity = show ? 1 : 0;
+      }
+
+      drawSkeleton(now);
+      renderer.render(scene, camera);
+
+      /* --- FPS --- */
+      frames++;
+      if (now - fpsT > 500) {
+        const fps = Math.round(frames * 1000 / (now - fpsT)); const det = Math.round(detTimes.filter(x => now - x < 1000).length);
+        detTimes = detTimes.filter(x => now - x < 1000);
+        if (fps !== shown.f) { $('fpsRender').textContent = fps; shown.f = fps; }
+        $('fpsDetect').textContent = state.camOn ? det : '--';
+        // moslashuvchan sifat
+        if (fps < 42 && PR > 1) { if (++lowCount >= 3) { PR = Math.max(1, PR - .25); resize(); lowCount = 0; } } else lowCount = 0;
+        frames = 0; fpsT = now;
+      }
+    }
+
+    let flashT = {};
+    function flash(id) { setOn(id, true, '#a78bfa'); clearTimeout(flashT[id]); flashT[id] = setTimeout(() => setOn(id, false), 900); }
+
+    /* ------------------------------------------------------------------ */
+    /*  QO'L SKELETI (2D)                                                   */
+    /* ------------------------------------------------------------------ */
+    function drawSkeleton(now) {
+      sctx.clearRect(0, 0, W, H);
+      const css = '#' + curColor.getHexString();
+      for (const [name, s] of Object.entries(slots)) {
+        if (!s.sm || s.alpha < .02) continue;
+        const p = s.sm, tint = name === 'shape' ? css : '#ffffff';
+        sctx.globalAlpha = s.alpha; sctx.lineCap = 'round';
+        sctx.strokeStyle = tint; sctx.globalAlpha = s.alpha * .14; sctx.lineWidth = 7; sctx.beginPath();
+        for (const [a, b] of BONES) { sctx.moveTo(p[a].x, p[a].y); sctx.lineTo(p[b].x, p[b].y); } sctx.stroke();
+        sctx.globalAlpha = s.alpha * .75; sctx.lineWidth = 1.6; sctx.strokeStyle = '#fff'; sctx.beginPath();
+        for (const [a, b] of BONES) { sctx.moveTo(p[a].x, p[a].y); sctx.lineTo(p[b].x, p[b].y); } sctx.stroke();
+        sctx.fillStyle = tint; sctx.globalAlpha = s.alpha * .95;
+        for (let i = 0; i < 21; i++) { sctx.beginPath(); sctx.arc(p[i].x, p[i].y, i % 4 === 0 && i ? 3.6 : 2.4, 0, TAU); sctx.fill(); }
+
+        if (name === 'ctrl' && s.pinch && slots.shape.on) {
+          const pulse = 14 + Math.sin(now / 120) * 2.5;
+          sctx.globalAlpha = s.alpha; sctx.strokeStyle = '#38bdf8'; sctx.lineWidth = 2;
+          sctx.beginPath(); sctx.arc(s.pp.x, s.pp.y, pulse, 0, TAU); sctx.stroke();
+          sctx.setLineDash([6, 9]); sctx.globalAlpha = s.alpha * .6; sctx.lineWidth = 1.5;
+          sctx.beginPath(); sctx.moveTo(s.pp.x, s.pp.y); sctx.lineTo(anchor.x, anchor.y); sctx.stroke(); sctx.setLineDash([]);
+          const mx = (s.pp.x + anchor.x) / 2, my = (s.pp.y + anchor.y) / 2; pill(`O'lcham · aylantirish`, mx, my, '#38bdf8');
+        }
+        if (name === 'shape' && s.count >= 0) {
+          const lab = s.count === 0 ? '✊ Yurak' : `${s.count} barmoq · ${SETS[state.set].shapes[s.count - 1].n}`;
+          const ux = Math.sin(s.roll), uy = -Math.cos(s.roll);
+          pill(lab, s.palm.x - ux * s.size * 1.1, s.palm.y - uy * s.size * 1.1, css);
+        }
+      }
+      sctx.globalAlpha = 1;
+    }
+    function pill(text, x, y, color) {
+      sctx.font = '600 12px Inter, system-ui, sans-serif'; const w = sctx.measureText(text).width + 22, h = 24;
+      sctx.save(); sctx.globalAlpha = Math.min(1, sctx.globalAlpha + .2);
+      sctx.fillStyle = 'rgba(5,6,11,.78)'; sctx.beginPath(); sctx.roundRect(x - w / 2, y - h / 2, w, h, 12); sctx.fill();
+      sctx.strokeStyle = color; sctx.globalAlpha *= .8; sctx.lineWidth = 1; sctx.stroke();
+      sctx.globalAlpha = 1; sctx.fillStyle = '#fff'; sctx.textAlign = 'center'; sctx.textBaseline = 'middle'; sctx.fillText(text, x, y + .5); sctx.restore();
+    }
+
+    /* ------------------------------------------------------------------ */
+    renderPanel(); setHud();
+    LAYERS.forEach(l => { l.mesh.geometry = getData(state.cur.k).geo; });
+    requestAnimationFrame(frame);
+
+    window.__fig = { onResults, slots, state, selectShape, changeSet, SETS, HEART, mapPt };
+  </script>
+</body>
+
+</html>
